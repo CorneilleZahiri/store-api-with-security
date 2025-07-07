@@ -1,5 +1,6 @@
 package com.store_api.store_api.controllers;
 
+import com.store_api.store_api.config.JwtConfig;
 import com.store_api.store_api.dtos.JwtResponse;
 import com.store_api.store_api.dtos.LoginUserRequest;
 import com.store_api.store_api.dtos.UserDto;
@@ -7,6 +8,8 @@ import com.store_api.store_api.entities.User;
 import com.store_api.store_api.mappers.UserMapper;
 import com.store_api.store_api.repositories.UserRepository;
 import com.store_api.store_api.service.JwtService;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -27,9 +30,12 @@ public class AuthController {
     private final JwtService jwtService;
     private final UserRepository userRepository;
     private final UserMapper userMapper;
+    private final JwtConfig jwtConfig;
 
     @PostMapping("/login")
-    public ResponseEntity<JwtResponse> login(@Valid @RequestBody LoginUserRequest request) {
+    public ResponseEntity<JwtResponse> login(
+            @Valid @RequestBody LoginUserRequest request,
+            HttpServletResponse response) {
 
         //NB: L'échec d'authentification doit renvoyer un 401 Unauthorized.
         authenticationManager.authenticate(
@@ -39,9 +45,19 @@ public class AuthController {
                 )
         );
 
-        String token = jwtService.generateToken(request.getEmail());
+        User user = userRepository.findByEmail(request.getEmail()).orElseThrow();
 
-        return ResponseEntity.ok(new JwtResponse(token));
+        String accessToken = jwtService.generateAccessToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user);
+
+        Cookie cookie = new Cookie("refreshToken", refreshToken);
+        cookie.setHttpOnly(true);
+        cookie.setPath("/auth/refresh");
+        cookie.setMaxAge(jwtConfig.getRefreshTokenExpiration());
+        cookie.setSecure(true);
+        response.addCookie(cookie);
+
+        return ResponseEntity.ok(new JwtResponse(accessToken));
     }
 
     @PostMapping("/validate")
@@ -61,9 +77,9 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<UserDto> me() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String email = (String) authentication.getPrincipal();
+        Long userId = (Long) authentication.getPrincipal();
 
-        User user = userRepository.findByEmail(email).orElse(null);
+        User user = userRepository.findById(userId).orElse(null);
 
         if (user == null) {
             return ResponseEntity.notFound().build();
