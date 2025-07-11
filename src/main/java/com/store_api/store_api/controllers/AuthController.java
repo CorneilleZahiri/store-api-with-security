@@ -7,6 +7,7 @@ import com.store_api.store_api.dtos.UserDto;
 import com.store_api.store_api.entities.User;
 import com.store_api.store_api.mappers.UserMapper;
 import com.store_api.store_api.repositories.UserRepository;
+import com.store_api.store_api.service.Jwt;
 import com.store_api.store_api.service.JwtService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
@@ -47,19 +48,36 @@ public class AuthController {
 
         User user = userRepository.findByEmail(request.getEmail()).orElseThrow();
 
-        String accessToken = jwtService.generateAccessToken(user);
-        String refreshToken = jwtService.generateRefreshToken(user);
+        Jwt accessToken = jwtService.generateAccessToken(user);
+        Jwt refreshToken = jwtService.generateRefreshToken(user);
 
-        Cookie cookie = new Cookie("refreshToken", refreshToken);
+        Cookie cookie = new Cookie("refreshToken", refreshToken.toString());
         cookie.setHttpOnly(true);
         cookie.setPath("/auth/refresh");
         cookie.setMaxAge(jwtConfig.getRefreshTokenExpiration());
         cookie.setSecure(true);
         response.addCookie(cookie);
 
-        return ResponseEntity.ok(new JwtResponse(accessToken));
+        return ResponseEntity.ok(new JwtResponse(accessToken.toString()));
     }
 
+    @PostMapping("/refresh")
+    public ResponseEntity<JwtResponse> refresh(
+            @CookieValue(value = "refreshToken") String refreshToken
+    ) {
+        Jwt jwt = jwtService.parseToken(refreshToken);
+
+        if (jwt == null || jwt.isExpired()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        User user = userRepository.findById(jwt.getUserId()).orElseThrow();
+        Jwt accessToken = jwtService.generateAccessToken(user);
+
+        return ResponseEntity.ok(new JwtResponse(accessToken.toString()));
+    }
+
+    /*
     @PostMapping("/validate")
     public boolean validateToken(@RequestHeader("Authorization") String authHeader) {
         System.out.println("Validate called");
@@ -68,11 +86,7 @@ public class AuthController {
 
         return jwtService.validateToken(token);
     }
-
-    @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<Void> handlerBadCredentialsException() {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-    }
+    */
 
     @GetMapping("/me")
     public ResponseEntity<UserDto> me() {
@@ -88,5 +102,10 @@ public class AuthController {
 
         return ResponseEntity.ok(userDto);
 
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<Void> handlerBadCredentialsException() {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 }

@@ -4,6 +4,7 @@ import com.store_api.store_api.dtos.RegisterUserRequest;
 import com.store_api.store_api.dtos.UpdateUserPassword;
 import com.store_api.store_api.dtos.UpdateUserRequest;
 import com.store_api.store_api.dtos.UserDto;
+import com.store_api.store_api.entities.Role;
 import com.store_api.store_api.entities.User;
 import com.store_api.store_api.mappers.UserMapper;
 import com.store_api.store_api.repositories.UserRepository;
@@ -67,6 +68,7 @@ public class UserController {
         User user = userMapper.userDtoToUser(registerUserRequest);
         //Crypter le mot de passe
         user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setRole(Role.USER); //Définir manuellement pour des tents
         User saveUser = userRepository.save(user);
 
         UserDto userDto = userMapper.userToDto(saveUser);

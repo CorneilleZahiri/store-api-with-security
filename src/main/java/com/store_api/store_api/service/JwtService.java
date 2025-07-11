@@ -15,33 +15,55 @@ import java.util.Date;
 public class JwtService {
     private final JwtConfig jwtConfig;
 
-    public String generateAccessToken(User user) {
+    public Jwt generateAccessToken(User user) {
         return generateToken(user, jwtConfig.getAccessTokenExpiration());
     }
 
-    public String generateRefreshToken(User user) {
+    public Jwt generateRefreshToken(User user) {
         return generateToken(user, jwtConfig.getRefreshTokenExpiration());
     }
 
-    private String generateToken(User user, long tokenExpiration) {
-        return Jwts.builder()
+    private Jwt generateToken(User user, long tokenExpiration) {
+        Claims claims = Jwts.claims()
                 .subject(user.getId().toString())
-                .claim("email", user.getEmail())
-                .claim("name", user.getName())
+                .add("email", user.getEmail())
+                .add("name", user.getName())
+                .add("role", user.getRole())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + 1000 * tokenExpiration))
-                .signWith(jwtConfig.getSecretKey())
-                .compact();
+                .build();
+
+        return new Jwt(claims, jwtConfig.getSecretKey());
+
+//        return Jwts.builder()
+//                .subject(user.getId().toString())
+//                .claim("email", user.getEmail())
+//                .claim("name", user.getName())
+//                .claim("role", user.getRole())
+//                .issuedAt(new Date())
+//                .expiration(new Date(System.currentTimeMillis() + 1000 * tokenExpiration))
+//                .signWith(jwtConfig.getSecretKey())
+//                .compact();
     }
 
-    public boolean validateToken(String token) {
+//    public boolean validateToken(String token) {
+//        try {
+//            Claims claims = getClaims(token);
+//
+//            return claims.getExpiration().after(new Date());
+//
+//        } catch (JwtException e) {
+//            return true;
+//        }
+//    }
+
+
+    public Jwt parseToken(String token) {
         try {
             Claims claims = getClaims(token);
-
-            return claims.getExpiration().after(new Date());
-
+            return new Jwt(claims, jwtConfig.getSecretKey());
         } catch (JwtException e) {
-            return false;
+            return null;
         }
     }
 
@@ -53,7 +75,11 @@ public class JwtService {
                 .getPayload();
     }
 
-    public Long getUserIdFromToken(String token) {
-        return Long.valueOf(getClaims(token).getSubject());
-    }
+//    public Long getUserIdFromToken(String token) {
+//        return Long.valueOf(getClaims(token).getSubject());
+//    }
+
+//    public Role getRoleFromToken(String token) {
+//        return Role.valueOf(getClaims(token).get("role", String.class));
+//    }
 }
